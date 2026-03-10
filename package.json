@@ -1,0 +1,19 @@
+{
+  "name": "phoenix-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "npx nodemon server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
+    "dotenv": "^17.3.1",
+    "nodemon": "^3.1.14",
+    "telegraf": "^4.16.3"
+  }
+}
