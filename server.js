@@ -18,7 +18,6 @@ bot.start(async (ctx) => {
 
   if (error) console.log(error); //error handler
   if (data) {
-    console.log("old user");
     return showMainMenu(ctx, "You can select a service from the menu.");
   } else {
     ctx.session = {
@@ -30,7 +29,6 @@ bot.start(async (ctx) => {
       `Please enter your full name (exactly as it appears on your CDL).`,
     );
 
-    console.log("new user");
   }
 });
 
@@ -59,28 +57,28 @@ bot.hears("Contact us", async (ctx) => {
 });
 
 bot.hears("‼️ DOT ‼️", async (ctx) => {
-  const newMessage = newMessageTemplate("dot", ctx);
-
   await ctx.reply(
     "Please confirm that you are currently stopped for a DOT inspection.",
     Markup.keyboard([["Confirm", "Cancel"]]).resize(),
   );
+});
 
+bot.hears("Confirm", async (ctx) => {
+  const newMessage = newMessageTemplate("dot", ctx);
   const { error } = await supabase.from("messages").insert(newMessage);
   if (error) {
     console.log(error);
     await ctx.reply("Something went wrong. Please try again.");
   }
-});
-
-bot.hears("Confirm", async (ctx) => {
   await showMainMenu(
     ctx,
     "Our team is currently checking your logs and preparing everything for the inspection.",
   );
 });
+
 bot.hears("Back", async (ctx) => {
-  if (ctx.session.lastMessages) {
+  if (ctx.session?.lastMessages) {
+    // there's a bug
     for (const id of ctx.session.lastMessages) {
       try {
         await ctx.deleteMessage(id);
@@ -219,9 +217,8 @@ bot.action(serviceRegex, async (ctx) => {
   }
   await ctx.reply(
     `Processing your request…
-
-You can wait for completion or cancel the request using the button below.`,
-    Markup.keyboard(["Cancel"]).resize(),
+We will let you know once your request is completes`,
+    Markup.keyboard(["Back"]).resize(), //Cancel
   );
   await ctx.answerCbQuery();
 
@@ -238,6 +235,7 @@ function newMessageTemplate(selectedService, ctx) {
     sender: "user",
     type: selectedService || null,
     text: `${servicesMap[selectedService]} request`,
+    is_read: false,
   };
 }
 
@@ -255,17 +253,27 @@ function subscribeToMessages() {
         const message = payload.new;
 
         // only react to admin messages
-        if (message.sender === "admin") {
+        if (message.type == null) {
           await bot.telegram.sendMessage(message.user_id, message.text);
+        } else if (message.type === "file") {
+          await bot.telegram.sendDocument(message.user_id, message.file_url, {
+            caption: message.text || "📎 File",
+          });
         }
       },
     )
     .subscribe();
 }
 
+// async function updateLastActiveTime(userId) {
+//   await supabase
+//     .from("users")
+//     .update({ lastActiveAt: new Date().toISOString() })
+//     .eq("user_id", userId);
+// }
+
 bot.launch();
 
 subscribeToMessages();
 
 // While registering user might send sticker's or images
-// error handlers
