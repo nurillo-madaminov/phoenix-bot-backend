@@ -77,16 +77,16 @@ bot.hears("Confirm", async (ctx) => {
 });
 
 bot.hears("Back", async (ctx) => {
-  if (ctx.session?.lastMessages) {
-    // there's a bug
-    for (const id of ctx.session.lastMessages) {
-      try {
-        await ctx.deleteMessage(id);
-      } catch (error) {
-        console.log(error);
-      }
-    }
-  }
+  // if (ctx.session?.lastMessages) {
+  //   // there's a bug
+  //   for (const id of ctx.session.lastMessages) {
+  //     try {
+  //       await ctx.deleteMessage(id);
+  //     } catch (error) {
+  //       console.log("THIS IS AN ERROR", error);
+  //     }
+  //   }
+  // }
   await showMainMenu(ctx, "You can select another service from the menu.");
 });
 
