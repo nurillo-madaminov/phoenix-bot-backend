@@ -28,7 +28,6 @@ bot.start(async (ctx) => {
     await ctx.reply(
       `Please enter your full name (exactly as it appears on your CDL).`,
     );
-
   }
 });
 
@@ -134,13 +133,33 @@ bot.on("text", async (ctx) => {
 
   if (ctx.session.step === "USDOT_NUMBER") {
     const telegramId = ctx.from.id;
+    const USDOT = ctx.message.text.trim();
+
+    // 🔥 find company by USDOT
+    const { data: company, error: companyError } = await supabase
+      .from("companies")
+      .select("*")
+      .eq("USDOT", USDOT)
+      .maybeSingle();
+
+    if (companyError) {
+      console.log(companyError);
+      return ctx.reply("Something went wrong. Please try again.");
+    }
+
+    // ❌ if not found (optional strict validation)
+    if (!company) {
+      return ctx.reply(
+        "❌ No company found with this USDOT.\n\nPlease enter correct one or contact our support center: @phoenixeldservice",
+      );
+    }
 
     const userData = {
       telegramId,
       username: ctx.from.username || null,
       fullName: ctx.session.user.name,
       phone: ctx.session.user.phone,
-      companyUSDOT: ctx.message.text.trim(),
+      companyUSDOT: USDOT,
       email: ctx.session.user.email.toLowerCase(),
       role: "client",
       lastActiveAt: new Date().toISOString(),
@@ -153,14 +172,15 @@ bot.on("text", async (ctx) => {
 
     if (error) {
       console.log(error);
-      await ctx.reply("Something went wrong. Please try again.");
+      return ctx.reply("Something went wrong. Please try again.");
     }
 
+    // ✅ use company name instead of USDOT
     await ctx.reply(`
 Name: ${userData.fullName}
 Email: ${userData.email}
 Phone: ${userData.phone}
-USDOT: ${userData.companyUSDOT}
+Company: ${company.name}
 `);
 
     await showMainMenu(
