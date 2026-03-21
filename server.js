@@ -76,7 +76,7 @@ bot.hears("Confirm", async (ctx) => {
 });
 
 bot.hears("Back", async (ctx) => {
-  // if (ctx.session?.lastMessages) {
+  // if (ctx.session.lastMessages) {
   //   // there's a bug
   //   for (const id of ctx.session.lastMessages) {
   //     try {
@@ -86,6 +86,11 @@ bot.hears("Back", async (ctx) => {
   //     }
   //   }
   // }
+  if (ctx.session.lastMessages) {
+    for (const id of ctx.session.lastMessages) {
+      await ctx.deleteMessage(id);
+    }
+  }
   await showMainMenu(ctx, "You can select another service from the menu.");
 });
 
@@ -196,10 +201,16 @@ async function showServiceButtons(ctx) {
   return ctx.reply("Choose a service:", {
     reply_markup: {
       inline_keyboard: [
-        [{ text: "CYCLE", callback_data: "new_cycle" }],
-        [{ text: "SHIFT", callback_data: "new_shift" }],
-        [{ text: "BREAK", callback_data: "new_break" }],
-        [{ text: "Fix Logs", callback_data: "fix_logs" }],
+        [
+          { text: "CYCLE", callback_data: "new_cycle" },
+          { text: "SHIFT", callback_data: "new_shift" },
+          { text: "BREAK", callback_data: "new_break" },
+        ],
+        [
+          { text: "PTI", callback_data: "pretrip" },
+          { text: "Profile", callback_data: "fix_profile" },
+          { text: "Fix Logs", callback_data: "fix_logs" },
+        ],
       ],
     },
   });
@@ -218,7 +229,9 @@ const servicesMap = {
   new_cycle: "Cycle",
   new_shift: "Shift",
   new_break: "Break",
-  fix_logs: "Fixing logs",
+  fix_logs: "Fix Logs",
+  fix_profile: "Profile",
+  pretrip: "PTI",
   dot: "DOT inspection",
 };
 
@@ -238,8 +251,10 @@ bot.action(serviceRegex, async (ctx) => {
   await ctx.reply(
     `Processing your request…
 We will let you know once your request is completes`,
-    Markup.keyboard(["Back"]).resize(), //Cancel
   );
+  // ctx.session.lastMessages = [msg1.message_id];
+
+  await showMainMenu(ctx, "You can select another service from the menu.");
   await ctx.answerCbQuery();
 
   const { error } = await supabase.from("messages").insert(newMessage);
@@ -247,6 +262,10 @@ We will let you know once your request is completes`,
     console.log(error);
     await ctx.reply("Something went wrong. Please try again.");
   }
+  ctx.session.lastMessages = [];
+  // setTimeout(() => {
+  //   // ctx.deleteMessage(ctx.session.lastMessages[0]);
+  // }, 1000);
 });
 
 function newMessageTemplate(selectedService, ctx) {
@@ -284,13 +303,6 @@ function subscribeToMessages() {
     )
     .subscribe();
 }
-
-// async function updateLastActiveTime(userId) {
-//   await supabase
-//     .from("users")
-//     .update({ lastActiveAt: new Date().toISOString() })
-//     .eq("user_id", userId);
-// }
 
 bot.launch();
 
