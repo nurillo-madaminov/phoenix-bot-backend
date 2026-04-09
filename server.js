@@ -278,8 +278,31 @@ function newMessageTemplate(selectedService, ctx) {
   };
 }
 
+let subscriptionChannel = null;
+let reconnectAttempts = 0;
+let reconnectTimeout = null;
+const MAX_RECONNECT_DELAY = 30000; // 30 seconds max
+
+function getReconnectDelay() {
+  const baseDelay = 1000;
+  const delay = baseDelay * Math.pow(2, reconnectAttempts);
+  return Math.min(delay, MAX_RECONNECT_DELAY);
+}
+
 function subscribeToMessages() {
-  supabase
+  // Clean up existing channel if any
+  if (subscriptionChannel) {
+    supabase.removeChannel(subscriptionChannel);
+    subscriptionChannel = null;
+  }
+
+  // Clear any pending reconnect timeout
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+
+  subscriptionChannel = supabase
     .channel("messages-channel")
     .on(
       "postgres_changes",
@@ -301,7 +324,47 @@ function subscribeToMessages() {
         }
       },
     )
-    .subscribe();
+    .on("system", (event) => {
+      // Handle connection state changes
+      const status = event.type;
+
+      if (status === "SUBSCRIBED") {
+        // Successfully connected - reset reconnection counter
+        reconnectAttempts = 0;
+        console.log("[Supabase] Realtime subscription connected");
+      } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
+        console.log(
+          `[Supabase] Connection ${status.toLowerCase()}, will reconnect...`,
+        );
+        scheduleReconnect();
+      }
+    })
+    .subscribe((status) => {
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        console.log(
+          `[Supabase] Subscription error: ${status}, will reconnect...`,
+        );
+        scheduleReconnect();
+      }
+    });
+}
+
+function scheduleReconnect() {
+  if (reconnectTimeout) {
+    return; // Already scheduled
+  }
+
+  const delay = getReconnectDelay();
+  reconnectAttempts++;
+
+  console.log(
+    `[Supabase] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`,
+  );
+
+  reconnectTimeout = setTimeout(() => {
+    reconnectTimeout = null;
+    subscribeToMessages();
+  }, delay);
 }
 
 bot.launch();
