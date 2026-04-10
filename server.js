@@ -45,6 +45,7 @@ bot.hears("Services", async (ctx) => {
 });
 
 bot.hears("Cancel", async (ctx) => {
+  if (ctx.session) ctx.session.step = null;
   await showMainMenu(
     ctx,
     "Cancelled. You can select another service from the menu.",
@@ -98,6 +99,35 @@ bot.hears("Back", async (ctx) => {
 
 bot.on("text", async (ctx) => {
   if (!ctx.session?.step) return;
+
+  if (ctx.session.step === "CUSTOM_MESSAGE") {
+    const messageText = ctx.message.text.trim();
+
+    if (!messageText) {
+      return ctx.reply("Please write your message or press Cancel.");
+    }
+
+    ctx.session.step = null;
+
+    const newMessage = {
+      user_id: ctx.from.id,
+      sender: "user",
+      type: "message",
+      text: messageText,
+      is_read: false,
+    };
+
+    const { error } = await supabase.from("messages").insert(newMessage);
+    if (error) {
+      console.log(error);
+      return ctx.reply("Something went wrong. Please try again.");
+    }
+
+    return showMainMenu(
+      ctx,
+      "Your message has been sent. You can select another service from the menu.",
+    );
+  }
 
   if (ctx.session.step === "ASK_NAME") {
     ctx.session.step = "ASK_EMAIL";
@@ -203,13 +233,19 @@ async function showServiceButtons(ctx) {
       inline_keyboard: [
         [
           { text: "CYCLE", callback_data: "new_cycle" },
-          { text: "SHIFT", callback_data: "new_shift" },
           { text: "BREAK", callback_data: "new_break" },
         ],
         [
+          { text: "Shift", callback_data: "new_shift" },
+          { text: "Shift+PTI", callback_data: "shift_pti" },
+        ],
+        [
           { text: "PTI", callback_data: "pretrip" },
-          { text: "Profile", callback_data: "fix_profile" },
           { text: "Fix Logs", callback_data: "fix_logs" },
+        ],
+        [
+          { text: "Profile", callback_data: "fix_profile" },
+          { text: "Message", callback_data: "custom_message" },
         ],
       ],
     },
@@ -228,6 +264,7 @@ async function showMainMenu(ctx, message) {
 const servicesMap = {
   new_cycle: "Cycle",
   new_shift: "Shift",
+  shift_pti: "Shift+PTI",
   new_break: "Break",
   fix_logs: "Fix Logs",
   fix_profile: "Profile",
@@ -266,6 +303,24 @@ We will let you know once your request is completes`,
   // setTimeout(() => {
   //   // ctx.deleteMessage(ctx.session.lastMessages[0]);
   // }, 1000);
+});
+
+bot.action("custom_message", async (ctx) => {
+  if (!ctx.session) ctx.session = {};
+  ctx.session.step = "CUSTOM_MESSAGE";
+
+  if (ctx.session.lastMessages) {
+    for (const id of ctx.session.lastMessages) {
+      await ctx.deleteMessage(id);
+    }
+    ctx.session.lastMessages = [];
+  }
+
+  await ctx.reply(
+    "Write your message and send it.",
+    Markup.keyboard([["Cancel"]]).resize(),
+  );
+  await ctx.answerCbQuery();
 });
 
 function newMessageTemplate(selectedService, ctx) {
