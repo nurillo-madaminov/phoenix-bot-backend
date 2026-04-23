@@ -77,21 +77,7 @@ bot.hears("Confirm", async (ctx) => {
 });
 
 bot.hears("Back", async (ctx) => {
-  // if (ctx.session.lastMessages) {
-  //   // there's a bug
-  //   for (const id of ctx.session.lastMessages) {
-  //     try {
-  //       await ctx.deleteMessage(id);
-  //     } catch (error) {
-  //       console.log("THIS IS AN ERROR", error);
-  //     }
-  //   }
-  // }
-  if (ctx.session.lastMessages) {
-    for (const id of ctx.session.lastMessages) {
-      await ctx.deleteMessage(id);
-    }
-  }
+  await deleteTrackedMessages(ctx);
   await showMainMenu(ctx, "You can select another service from the menu.");
 });
 
@@ -259,6 +245,31 @@ async function showMainMenu(ctx, message) {
   );
 }
 
+async function deleteTrackedMessages(ctx) {
+  if (!ctx.session?.lastMessages?.length) return;
+
+  const messageIds = [...ctx.session.lastMessages];
+  ctx.session.lastMessages = [];
+
+  for (const id of messageIds) {
+    try {
+      await ctx.deleteMessage(id);
+    } catch (error) {
+      const description = error?.response?.description || "";
+      const isMissingMessageError =
+        error?.response?.error_code === 400 &&
+        description.includes("message to delete not found");
+
+      if (!isMissingMessageError) {
+        console.log("Failed to delete tracked message", {
+          messageId: id,
+          error,
+        });
+      }
+    }
+  }
+}
+
 //--------------------------------------
 
 const servicesMap = {
@@ -280,11 +291,7 @@ bot.action(serviceRegex, async (ctx) => {
 
   const newMessage = newMessageTemplate(selectedService, ctx);
 
-  if (ctx.session.lastMessages) {
-    for (const id of ctx.session.lastMessages) {
-      await ctx.deleteMessage(id);
-    }
-  }
+  await deleteTrackedMessages(ctx);
   await ctx.reply(
     `Processing your request…
 We will let you know once your request is completes`,
@@ -299,7 +306,6 @@ We will let you know once your request is completes`,
     console.log(error);
     await ctx.reply("Something went wrong. Please try again.");
   }
-  ctx.session.lastMessages = [];
   // setTimeout(() => {
   //   // ctx.deleteMessage(ctx.session.lastMessages[0]);
   // }, 1000);
@@ -309,12 +315,7 @@ bot.action("custom_message", async (ctx) => {
   if (!ctx.session) ctx.session = {};
   ctx.session.step = "CUSTOM_MESSAGE";
 
-  if (ctx.session.lastMessages) {
-    for (const id of ctx.session.lastMessages) {
-      await ctx.deleteMessage(id);
-    }
-    ctx.session.lastMessages = [];
-  }
+  await deleteTrackedMessages(ctx);
 
   await ctx.reply(
     "Write your message and send it.",
